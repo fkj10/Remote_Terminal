@@ -32,11 +32,7 @@ threading.Thread(target = tools.reply, args=[message,reply_message] ).start() # 
 threading.Thread(target = tools.auto_kick, args=[kick_signal,auto_kick_channel] ).start() #
 threading.Thread(target = tools.no_spamming, args=[spamming_channel,spamming_signal] ).start() # 启动no_spamming线程
 
-client = NapCatClient(
-    ws_url="",
-    token=""
-)
-# 配置napcat 
+client = Config().client
 
 async def main():
     logging.info("正在连接到 NapCat...")

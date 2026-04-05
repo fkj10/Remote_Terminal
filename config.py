@@ -1,5 +1,6 @@
 import random
 from openai import OpenAI
+from napcat import NapCatClient 
 
 
 class Config:
@@ -31,3 +32,9 @@ class Config:
         
         #no_spamming
         self.spam_threshold = 5
+
+        self.client = NapCatClient(
+        ws_url="",
+        token=""
+        )
+# 配置napcat 

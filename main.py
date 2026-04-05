@@ -69,25 +69,30 @@ async def main():
                     await client.send_msg(message_type="group", group_id = event.group_id, message=str("@"+event.sender.nickname)+"\n"+reply_result)
                     logging.info(f"回复已发送")
 
-                    kick_info = auto_kick_channel.get_nowait()
-                    ban_info = spamming_signal.get_nowait()
-                    if kick_info[0] == True:
-                        member_list = await client.get_group_member_list(config.group_id)
-                        for user in member_list: # 获取群成员列表 用于 auto_kick 功能
-                            if user.user_id == kick_info[1] and user.group_id == kick_info[2]: # 如果用户在群里了 就执行踢人了
-                                logging.info(f"用户 {kick_info[1]} 在群 {kick_info[2]} 中，准备执行踢人操作")
-                                #await client.set_group_kick(group_id = kick_info[2], user_id = kick_info[1])
-                                #logging.info(f"已踢人: user_id={kick_info[1]} group_id={kick_info[2]}")
+                    try:
+                        kick_info = auto_kick_channel.get_nowait()
+                        ban_info = spamming_signal.get_nowait()
+                        if kick_info[0] == True:
+                            member_list = await client.get_group_member_list(config.group_id)
+                            for user in member_list: # 获取群成员列表 用于 auto_kick 功能
+                                if user.user_id == kick_info[1] and user.group_id == kick_info[2]: # 如果用户在群里了 就执行踢人了
+                                    logging.info(f"用户 {kick_info[1]} 在群 {kick_info[2]} 中，准备执行踢人操作")
+                                    #await client.set_group_kick(group_id = kick_info[2], user_id = kick_info[1])
+                                    #logging.info(f"已踢人: user_id={kick_info[1]} group_id={kick_info[2]}")
 
-                    if ban_info[0] == True:
-                        member_list = await client.get_group_member_list(config.group_id)
-                        for user in member_list: # 获取群禁言列表 用于 no_spamming 功能
-                            if user.user_id == ban_info[1] and user.group_id == ban_info[2]: # 如果用户已经在禁言列表里了 就不重复禁言了
-                                logging.info(f"用户 {ban_info[1]} 已经在群 {ban_info[2]} 的禁言列表里了，跳过禁言")
+                        if ban_info[0] == True:
+                            member_list = await client.get_group_member_list(config.group_id)
+                            for user in member_list: # 获取群禁言列表 用于 no_spamming 功能
+                                if user.user_id == ban_info[1] and user.group_id == ban_info[2]: # 如果用户已经在禁言列表里了 就不重复禁言了
+                                    logging.info(f"用户 {ban_info[1]} 已经在群 {ban_info[2]} 的禁言列表里了，跳过禁言")
                             
-                        else:
-                            await client.set_group_ban(group_id = ban_info[2], user_id = ban_info[1], duration=120)
-                            logging.info(f"已禁言: user_id={ban_info[1]} group_id={ban_info[2]} duration=120s")
+                            else:
+                                await client.set_group_ban(group_id = ban_info[2], user_id = ban_info[1], duration=120)
+                                logging.info(f"已禁言: user_id={ban_info[1]} group_id={ban_info[2]} duration=120s")
+                    except queue.Empty:
+                        pass
+                    except Exception as e:
+                        logging.error(e)
 
 
 if __name__ == "__main__":

@@ -5,14 +5,12 @@ import logging
 import queue
 import threading
 import tools
-import datetime
-import os
 from config import Config
 
 # 部分注释来自Copilot 使用中文
 # 部分注释来自_cmd_block 使用英文
 # 至于为什么，可能是我懒得切换输入法了((( 
-
+config = Config() # 读取配置
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 #Config logging format
 
@@ -33,7 +31,7 @@ cpp_get = queue.Queue() # main <- cpp_compatible ( <- cpp_server )
 cpp_post = queue.Queue() # main -> cpp_compatible (-> cpp_server )
 # Sending QQ message (and info ) to cpp Server 
 
-support_name = Config().support_name 
+support_name = config.support_name 
 # 配置ai所支持的呼出名称
 # 配置ai所支持的呼出名称
 # 即使用哪些名字可以调用reply
@@ -44,8 +42,8 @@ threading.Thread(target = tools.auto_kick, args=[kick_signal,auto_kick_channel] 
 threading.Thread(target = tools.no_spamming, args=[spamming_channel,spamming_signal] ).start() # Start no_spamming thread
 
 client = NapCatClient(
-    ws_url=Config().ws_url,
-    token=Config().token
+    ws_url=config.ws_url,
+    token=config.token
 )
 # 配置napcat 
 
@@ -62,7 +60,7 @@ async def main():
                 ###
                 
                 kick_signal.put([event.raw_message,event.user_id,event.group_id])
-                spamming_signal.put([event.raw_message,event.user_id,event.group_id])
+                spamming_channel.put([event.raw_message,event.user_id,event.group_id])
                 logging.info(f"消息已放入队列: {event.raw_message}")
 
                 if any(sub in event.raw_message for sub in support_name):
@@ -71,38 +69,27 @@ async def main():
                     await client.send_msg(message_type="group", group_id = event.group_id, message=str("@"+event.sender.nickname)+"\n"+reply_result)
                     logging.info(f"回复已发送")
 
-def sub_thread(kick_signal,spamming_signal,client):
-    async def main_sub():
-        try:
-            # 此线程用于管理群 直接和no_spamming和auto_kick通信
-            async with client:
-                while True:
-                    #spamming_signal.put([True,user_id,group_id]) # 发送信号 
-                    #kick_signal.put([True,message[1],message[2]])
-                    #Format : [event.raw_message,event.user_id,event.group_id]
-                    kick_info = kick_signal.get()
-                    ban_info = spamming_signal.get()
+                    kick_info = auto_kick_channel.get_nowait()
+                    ban_info = spamming_signal.get_nowait()
                     if kick_info[0] == True:
-                        for user in client.get_group_member_list(Config().group_id): # 获取群成员列表 用于 auto_kick 功能
+                        member_list = await client.get_group_member_list(config.group_id)
+                        for user in member_list: # 获取群成员列表 用于 auto_kick 功能
                             if user.user_id == kick_info[1] and user.group_id == kick_info[2]: # 如果用户在群里了 就执行踢人了
                                 logging.info(f"用户 {kick_info[1]} 在群 {kick_info[2]} 中，准备执行踢人操作")
-                                await client.set_group_kick(group_id = kick_info[2], user_id = kick_info[1])
-                                logging.info(f"已踢人: user_id={kick_info[1]} group_id={kick_info[2]}")
+                                #await client.set_group_kick(group_id = kick_info[2], user_id = kick_info[1])
+                                #logging.info(f"已踢人: user_id={kick_info[1]} group_id={kick_info[2]}")
 
                     if ban_info[0] == True:
-                        for user in client.get_group_shut_list(Config().group_id): # 获取群禁言列表 用于 no_spamming 功能
+                        member_list = await client.get_group_member_list(config.group_id)
+                        for user in member_list: # 获取群禁言列表 用于 no_spamming 功能
                             if user.user_id == ban_info[1] and user.group_id == ban_info[2]: # 如果用户已经在禁言列表里了 就不重复禁言了
                                 logging.info(f"用户 {ban_info[1]} 已经在群 {ban_info[2]} 的禁言列表里了，跳过禁言")
                             
                         else:
                             await client.set_group_ban(group_id = ban_info[2], user_id = ban_info[1], duration=120)
                             logging.info(f"已禁言: user_id={ban_info[1]} group_id={ban_info[2]} duration=120s")
-        except Exception as e:
-            logging.error(f"发生错误: {e},在线程sub_thread中")
-                
-    asyncio.run(main_sub())
 
 
 if __name__ == "__main__":
     asyncio.run(main())
-    threading.Thread(target = sub_thread, args=[kick_signal,spamming_signal,client] ).start()
+    

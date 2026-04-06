@@ -1,0 +1,2 @@
+napcat-sdk==0.6.8
+openai==2.30.0

@@ -1,4 +1,5 @@
 import asyncio
+import time
 from napcat import NapCatClient
 import napcat
 import logging
@@ -55,6 +56,7 @@ async def main():
         async for event in client:
             if isinstance(event, (napcat.types.GroupMessageEvent)):
                 logging.info(f"收到消息: {event.raw_message}")
+                reply_status = 0
                 ###
                 #在此处配置要放入哪些队列
                 ###
@@ -64,8 +66,18 @@ async def main():
                 logging.info(f"消息已放入队列: {event.raw_message}")
 
                 if any(sub in event.raw_message for sub in support_name):
-                    message.put(event.raw_message)
+                    try:
+                        if time.time() - t1 >= 60 and reply_status == 1:
+                            reply_status = 0
+                            logging.info("频率限制已解除，继续对话,from main thread")
+                    except NameError:
+                        pass
+                    if reply_status == 0:
+                        message.put(event.raw_message)
                     reply_result = reply_message.get()
+                    if reply_result == '已经到达频率限制，暂停使用60s':
+                        reply_status = 1
+                        t1 = time.time()
                     await client.send_msg(message_type="group", group_id = event.group_id, message=str("@"+event.sender.nickname)+"\n"+reply_result)
                     logging.info(f"回复已发送")
 

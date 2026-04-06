@@ -23,6 +23,8 @@ def reply(qq_message,reply_message,prompt = config.prompt,Signal = Signal):
                     lrs[1] = 0
                     time.sleep(60)
                     qq_message.queue.clear()
+                    Signal.queue.clear()
+                    logging.info("频率限制已解除，继续对话")
                     continue
 
                 if time.time() - lrs[0] <= 60:

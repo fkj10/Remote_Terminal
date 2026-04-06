@@ -1,5 +1,5 @@
 # Remote_Terminal
 
-The AI reply for QQ Group, Using Napcat + Python
+基于Napcat的QQ机器人，使用Python + napcat-sdk
 
-Before you start, you should go and configure config.py
+[配置机器人](配置RTL.md)

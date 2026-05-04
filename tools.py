@@ -7,7 +7,7 @@ import time
 import socket
 config = Config()
 Signal = queue.Queue() # 用于线程间通信的信号队列
-def reply(qq_message,reply_message,prompt = config.prompt,Signal = Signal):
+def reply(qq_message,reply_message,reply_status,prompt = config.prompt,Signal = Signal):
     global config
     client = config.client[0]
     tools = []
@@ -20,6 +20,7 @@ def reply(qq_message,reply_message,prompt = config.prompt,Signal = Signal):
                 if lrs[1] >= config.reply_threshold:
                     logging.error("已经到达频率限制，暂停使用60s")
                     reply_message.put("已经到达频率限制，暂停使用60s")
+                    reply_status.put(1)
                     lrs[1] = 0
                     time.sleep(60)
                     qq_message.queue.clear()
@@ -32,6 +33,7 @@ def reply(qq_message,reply_message,prompt = config.prompt,Signal = Signal):
                 
                 else:
                     lrs[1] = 0
+                    
                 
                 
                 response = client.chat.completions.create( # Create chat 
@@ -58,6 +60,7 @@ def reply(qq_message,reply_message,prompt = config.prompt,Signal = Signal):
                     logging.info(f"模型回复: {content}")
                     reply_message.put(content)
                     lrs[0] = time.time()
+                    reply_status.put(0)
         except Exception as e:
             logging.error(f"发生错误: {e},在线程reply中")
     

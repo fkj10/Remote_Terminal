@@ -18,6 +18,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 #reply 功能所需queue
 message = queue.Queue() # main -> reply
 reply_message = queue.Queue() # main <- reply
+reply_status = queue.Queue() 
 
 # auto_kick 功能所需queue
 kick_signal = queue.Queue() #main -> auto_kick 
@@ -38,7 +39,7 @@ support_name = config.support_name
 # 即使用哪些名字可以调用reply
       
 
-threading.Thread(target = tools.reply, args=[message,reply_message] ).start() # Start reply thread
+threading.Thread(target = tools.reply, args=[message,reply_message,reply_status] ).start() # Start reply thread
 threading.Thread(target = tools.auto_kick, args=[kick_signal,auto_kick_channel] ).start() # Start auto_kick thread
 threading.Thread(target = tools.no_spamming, args=[spamming_channel,spamming_signal] ).start() # Start no_spamming thread
 
@@ -53,10 +54,11 @@ async def main():
     async with client:
         logging.info(f"连接成功！当前登录账号: {client.self_id}")
         # 3. 循环接收事件
+        mt_reply_status = 0
         async for event in client:
             if isinstance(event, (napcat.types.GroupMessageEvent)):
                 logging.info(f"收到消息: {event.raw_message}")
-                reply_status = 0
+                
                 ###
                 #在此处配置要放入哪些队列
                 ###
@@ -67,20 +69,31 @@ async def main():
 
                 if any(sub in event.raw_message for sub in support_name):
                     try:
-                        if time.time() - t1 >= 60 and reply_status == 1:
-                            reply_status = 0
+                        if time.time() - t1 >= 60 and mt_reply_status == 1:
+                            mt_reply_status = 0
                             logging.info("频率限制已解除，继续对话,from main thread")
+                            reply_message.queue.clear()
                     except NameError:
                         pass
-                    if reply_status == 0:
-                        message.put(event.raw_message)
-                    reply_result = reply_message.get()
-                    if reply_result == '已经到达频率限制，暂停使用60s':
-                        reply_status = 1
-                        t1 = time.time()
-                    await client.send_msg(message_type="group", group_id = event.group_id, message=str("@"+event.sender.nickname)+"\n"+reply_result)
-                    logging.info(f"回复已发送")
-
+                    if mt_reply_status == 1:
+                        await client.send_msg(message_type="group", group_id = event.group_id, message=str("@"+event.sender.nickname)+"\n"+'已经到达频率限制，暂停使用60s')
+                        continue
+                    if mt_reply_status == 0:
+                        message.put(event.raw_message+" From user"+event.sender.nickname)
+                        try:
+                            reply_result = reply_message.get(timeout=10)
+                            await client.send_msg(message_type="group", group_id = event.group_id, message=str("@"+event.sender.nickname)+"\n"+reply_result)
+                            logging.info(f"回复已发送")
+                            if reply_status.get() == 1:
+                                mt_reply_status = 1
+                                t1 = time.time()
+                        except queue.Empty:
+                            await client.send_msg(message_type="group", group_id = event.group_id, message=str("@"+event.sender.nickname)+"\n"+"线程阻塞")
+                            logging.error(f"Reply_queue get超时")
+                            logging.info(f"当前mt_reply_status: {mt_reply_status}")
+                            reply_message.queue.clear()
+                            message.queue.clear()
+                    
                     try:
                         kick_info = auto_kick_channel.get_nowait()
                         ban_info = spamming_signal.get_nowait()
